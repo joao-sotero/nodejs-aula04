@@ -396,10 +396,115 @@ Define todos os containers que serão gerenciados.
 | `container_name` | Nome personalizado do container | `meu-postgres` |
 | `ports` | Mapeamento porta_host:porta_container | `"3000:3000"` |
 | `environment` | Variáveis de ambiente | `NODE_ENV: production` |
+| `env_file` | Arquivo .env com variáveis de ambiente | `.env` |
 | `volumes` | Volumes e bind mounts | `- ./data:/app/data` |
 | `networks` | Redes que o container participará | `- frontend` |
 | `depends_on` | Dependências entre serviços | `- database` |
 | `restart` | Política de restart | `unless-stopped` |
+
+### 🔐 Variáveis de Ambiente com Arquivo .env
+
+O Docker Compose permite carregar variáveis de ambiente através de arquivos `.env`, facilitando o gerenciamento de configurações sensíveis.
+
+#### **Estrutura do arquivo .env**
+```bash
+# Arquivo .env na raiz do projeto
+NODE_ENV=development
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=meuapp
+DB_USER=usuario
+DB_PASSWORD=senha123
+POSTGRES_PASSWORD=senha123
+PGADMIN_EMAIL=admin@exemplo.com
+PGADMIN_PASSWORD=admin123
+```
+
+#### **Usando no docker-compose.yml**
+```yaml
+services:
+  app:
+    image: node:20-alpine
+    env_file:
+      - .env                    # Carrega todas as variáveis do .env
+    environment:
+      - NODE_ENV=${NODE_ENV}    # Ou usar interpolação específica
+    ports:
+      - "3000:3000"
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "${DB_PORT}:5432"       # Usar variável para porta também
+```
+
+#### **Boas Práticas com .env**
+```bash
+# 1. Criar .env.example (template público)
+NODE_ENV=development
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=nome_do_banco
+DB_USER=seu_usuario
+DB_PASSWORD=sua_senha
+
+# 2. Adicionar .env ao .gitignore
+echo ".env" >> .gitignore
+
+# 3. Usar diferentes arquivos por ambiente
+docker compose --env-file .env.development up
+docker compose --env-file .env.production up -d
+```
+
+#### **Exemplo Prático Completo**
+**.env:**
+```bash
+# Configurações da Aplicação
+NODE_ENV=development
+APP_PORT=3000
+
+# PostgreSQL
+POSTGRES_DB=aula04
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=1234
+DB_PORT=5432
+
+# pgAdmin
+PGADMIN_EMAIL=user@domain.com
+PGADMIN_PASSWORD=1234
+PGADMIN_PORT=5050
+```
+
+**docker-compose.yml:**
+```yaml
+services:
+  app:
+    build: .
+    env_file: .env
+    ports:
+      - "${APP_PORT}:3000"
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${DB_PORT}/${POSTGRES_DB}
+
+  postgres:
+    image: postgres
+    env_file: .env
+    ports:
+      - "${DB_PORT}:5432"
+
+  pgadmin:
+    image: dpage/pgadmin4
+    env_file: .env
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
+    ports:
+      - "${PGLADMIN_PORT}:80"
+```
 
 ### 🧠 Exemplos Avançados
 
@@ -469,6 +574,66 @@ docker compose stop
 
 # Parar e remover tudo
 docker compose down
+```
+
+### 🛡️ Segurança com Variáveis de Ambiente
+
+#### **⚠️ O que NUNCA fazer:**
+```yaml
+# ❌ NUNCA hardcode senhas no docker-compose.yml
+services:
+  postgres:
+    environment:
+      - POSTGRES_PASSWORD=minhasenha123  # ❌ Senha exposta no código
+```
+
+#### **✅ Boas Práticas:**
+```bash
+# 1. Use .env para desenvolvimento
+# .env
+POSTGRES_PASSWORD=senha_dev_123
+
+# 2. Use Docker Secrets para produção
+# docker-compose.prod.yml
+services:
+  postgres:
+    secrets:
+      - postgres_password
+    environment:
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+
+# 3. Use variáveis do sistema em produção
+export POSTGRES_PASSWORD="senha_super_segura"
+docker compose up -d
+```
+
+#### **🔍 Validação de Variáveis**
+```yaml
+# docker-compose.yml
+services:
+  app:
+    image: node:20-alpine
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}           # Valor padrão
+      - DB_HOST=${DB_HOST:?Database host required}  # Obrigatória
+      - API_KEY=${API_KEY:?API key is required}     # Erro se não definida
+```
+
+#### **📂 Estrutura Recomendada**
+```
+projeto/
+├── .env.example          # Template público (no git)
+├── .env                 # Configurações locais (no .gitignore)
+├── .env.development     # Ambiente de desenvolvimento
+├── .env.staging         # Ambiente de homologação  
+├── .env.production      # Ambiente de produção
+├── docker-compose.yml   # Configuração base
+├── docker-compose.dev.yml   # Override para desenvolvimento
+└── docker-compose.prod.yml  # Override para produção
 ```
 
 ---
