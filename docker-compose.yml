@@ -18,11 +18,9 @@ services:
     environment:
       POSTGRES_DB: aula04
       POSTGRES_PASSWORD: 1234
-    volumes:
-      - /pgdata:/var/lib/postgresql/data
     networks:
       - aula04
 
 networks:
   aula04:
-    external: true
+    driver: bridge
